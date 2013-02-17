@@ -340,12 +340,6 @@ Perl_yyparse (pTHX_ int gramtype)
 #else
 	parser->yychar = yylex();
 #endif
-
-#  ifdef EBCDIC
-	if (parser->yychar >= 0 && parser->yychar < 255) {
-	    parser->yychar = NATIVE_TO_ASCII(parser->yychar);
-	}
-#  endif
     }
 
     if (parser->yychar <= YYEOF) {
