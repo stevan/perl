@@ -253,6 +253,10 @@ Perl's extended UTF-8 means we can have start bytes up to FF.
 		      (uv) < 0x80000000     ? 6 : 7 )
 #endif
 
+/* This is illegal in any well-formed UTF-8 in both EBCDIC and ASCII
+ * as it is only in overlongs. */
+#define ILLEGAL_UTF8_BYTE   I8_TO_NATIVE_UTF8(0xC1)
+
 /* How wide can a single UTF-8 encoded character become in bytes. */
 /* NOTE: Strictly speaking Perl's UTF-8 should not be called UTF-8 since UTF-8
  * is an encoding of Unicode, and Unicode's upper limit, 0x10FFFF, can be
