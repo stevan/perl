@@ -489,19 +489,14 @@ Perl rules.  If the input is a number that doesn't fit in an octet, FALSE is
 always returned.
 
 Variant C<isFOO_A> (e.g., C<isALPHA_A()>) will return TRUE only if the input is
-also in the ASCII character set.  For ASCII platforms, the base function with
-no suffix and the one with the C<_A> suffix are identical.  On EBCDIC
-platforms, the C<_A> suffix function will not return true unless the specified
-character also has an ASCII equivalent.
+also in the ASCII character set.  The base function with no suffix and the one
+with the C<_A> suffix are identical.
 
-Variant C<isFOO_L1> operates on the full Latin1 character set.  For EBCDIC
-platforms, the base function with no suffix and the one with the C<_L1> suffix
-are identical.  For ASCII platforms, the C<_L1> suffix imposes the Latin-1
-character set onto the platform.  That is, the code points that are ASCII are
-unaffected, since ASCII is a subset of Latin-1.  But the non-ASCII code points
-are treated as if they are Latin-1 characters.  For example, C<isSPACE_L1()>
-will return true when called with the code point 0xA0, which is the Latin-1
-NO-BREAK SPACE.
+Variant C<isFOO_L1> imposes the Latin-1 character set onto the platform.  That
+is, the code points that are ASCII are unaffected, since ASCII is a subset of
+Latin-1.  But the non-ASCII code points are treated as if they are Latin-1
+characters.  For example, C<isSPACE_L1()> will return true when called with the
+code point 0xA0, which is the Latin-1 NO-BREAK SPACE.
 
 Variant C<isFOO_uni> is like the C<isFOO_L1> variant, but accepts any UV code
 point as input.  If the code point is larger than 255, Unicode rules are used
@@ -920,7 +915,8 @@ EXTCONST U32 PL_charclass[];
 #   define isPSXSPC_A(c) (isSPACE_A(c) || (c) == '\v')
 #   ifdef EBCDIC
         /* We could be called without perl.h, so the native functions are the
-         * easiest to code these in. */
+         * easiest to code these in.  They likely will return false for all
+         * non-ASCII values, but this makes sure */
 #       define isALPHA_A(c)    (isASCII(c) && isalpha(c))
 #       define isALPHANUMERIC_A(c) (isASCII(c) && isalnum(c))
 #       define isCNTRL_A(c)    (isASCII(c) && iscntrl(c))
@@ -991,32 +987,6 @@ EXTCONST U32 PL_charclass[];
                                || NATIVE_TO_LATIN1((U8) c) == 0xA0)
 #endif
 
-/* Macros that differ between EBCDIC and ASCII.  Where C89 defines a function,
- * that is used in the EBCDIC form, because in EBCDIC we do not do locales:
- * therefore can use native functions.  For those where C89 doesn't define a
- * function, use our function, assuming that the EBCDIC code page is isomorphic
- * with Latin1, which the three currently recognized by Perl are.  Some libc's
- * have an isblank(), but it's not guaranteed. */
-#ifdef EBCDIC
-#   define isALPHA(c)	isalpha(c)
-#   define isALPHANUMERIC(c)	isalnum(c)
-#   define isBLANK(c)	((c) == ' ' || (c) == '\t' || NATIVE_TO_LATIN1(c) == 0xA0)
-#   define isCNTRL(c)	iscntrl(c)
-#   define isDIGIT(c)	isdigit(c)
-#   define isGRAPH(c)	isgraph(c)
-#   define isIDFIRST(c) (isALPHA(c) || (c) == '_')
-#   define isLOWER(c)	islower(c)
-#   define isPRINT(c)	isprint(c)
-#   define isPSXSPC(c)	isspace(c)
-#   define isPUNCT(c)	ispunct(c)
-#   define isSPACE(c)   (isPSXSPC(c) /* && (c) != '\v' (Experimentally making
-                                        these macros identical) */)
-#   define isUPPER(c)	isupper(c)
-#   define isXDIGIT(c)	isxdigit(c)
-#   define isWORDCHAR(c) (isalnum(c) || (c) == '_')
-#   define toLOWER(c)	tolower(c)
-#   define toUPPER(c)	toupper(c)
-#else /* Not EBCDIC: ASCII-only matching */
 #   define isALPHANUMERIC(c)  isALPHANUMERIC_A(c)
 #   define isALPHA(c)   isALPHA_A(c)
 #   define isBLANK(c)   isBLANK_A(c)
@@ -1040,7 +1010,6 @@ EXTCONST U32 PL_charclass[];
        work because the _MOD does not apply in the ASCII range) */
 #   define toLOWER(c)	(isUPPER(c) ? (c) + ('a' - 'A') : (c))
 #   define toUPPER(c)	(isLOWER(c) ? (c) - ('a' - 'A') : (c))
-#endif
 
 
 /* Use table lookup for speed; return error character for input
