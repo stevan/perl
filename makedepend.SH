@@ -162,16 +162,16 @@ for file in `$cat .clist`; do
       $sed -n <$file \
 	-e "/^${filebase}_init(/q" \
         -e ': testcontinuation'       \
-	-e '/^[	 ]*#/s|/\*..*\*/| |' \
+	-e '/^[ 	]*#/s|[ 	]*/\*..*\*/[ 	]*| |' \
         -e '/\\$/{'                   \
             -e 'N'                    \
             -e 'b testcontinuation'   \
         -e '}'                        \
-        -e 's/\\\n/ /g'               \
+	-e 's/\\\n/ /g'                            \
 	-e '/^#line/d' \
-	-e '/^[	 ]*#/{' \
-	    -e 's|/\*[^*].*$||'               \
-	    -e 's|/\*\*[^/].*$||'             \
+	-e '/^[ 	]*#/{' \
+	    -e 's|[ 	]*/\*[^*].*$||'             \
+	    -e 's|[ 	]*/\*\*[^/].*$||'             \
 	-e p \
 	-e '}' ) >UU/$file.c
 
