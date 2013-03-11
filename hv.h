@@ -82,6 +82,7 @@ struct xpvhv_aux {
     AV		*xhv_backreferences; /* back references for weak references */
     HE		*xhv_eiter;	/* current entry of iterator */
     I32		xhv_riter;	/* current root of iterator */
+    U32         xhv_fill_lazy;
 
 /* Concerning xhv_name_count: When non-zero, xhv_name_u contains a pointer 
  * to an array of HEK pointers, this being the length. The first element is
@@ -784,7 +785,7 @@ C<SV*>.
 #  define Nullhv Null(HV*)
 #endif
 #define HvARRAY(hv)	((hv)->sv_u.svu_hash)
-#define HvFILL(hv)	Perl_hv_fill(aTHX_ (const HV *)(hv))
+#define HvFILL(hv)	Perl_hv_fill(aTHX_ MUTABLE_HV(hv))
 #define HvMAX(hv)	((XPVHV*)  SvANY(hv))->xhv_max
 /* This quite intentionally does no flag checking first. That's your
    responsibility.  */

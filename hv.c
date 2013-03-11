@@ -36,6 +36,7 @@ holds the key and hash value.
 #include "perl.h"
 
 #define DO_HSPLIT(xhv) ((xhv)->xhv_keys > (xhv)->xhv_max) /* HvTOTALKEYS(hv) > HvMAX(hv) */
+#define HV_FILL_THRESHOLD 31
 
 static const char S_strtab_error[]
     = "Cannot modify shared string table in hv_%s";
@@ -795,6 +796,12 @@ Perl_hv_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
 	HvHASKFLAGS_on(hv);
 
     xhv->xhv_keys++; /* HvTOTALKEYS(hv)++ */
+    if (!HeNEXT(entry) && SvOOK(hv)) {
+        /* initial entry, and aux struct present.  */
+        struct xpvhv_aux *const aux = HvAUX(hv);
+        if (aux->xhv_fill_lazy)
+            ++aux->xhv_fill_lazy;
+    }
     if ( DO_HSPLIT(xhv) ) {
         const STRLEN oldsize = xhv->xhv_max + 1;
         const U32 items = (U32)HvPLACEHOLDERS_get(hv);
@@ -905,6 +912,7 @@ S_hv_delete_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
     XPVHV* xhv;
     HE *entry;
     HE **oentry;
+    HE *const *first_entry;
     bool is_utf8 = (k_flags & HVhek_UTF8) ? TRUE : FALSE;
     int masked_flags;
 
@@ -980,7 +988,7 @@ S_hv_delete_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
 
     masked_flags = (k_flags & HVhek_MASK);
 
-    oentry = &(HvARRAY(hv))[hash & (I32) HvMAX(hv)];
+    first_entry = oentry = &(HvARRAY(hv))[hash & (I32) HvMAX(hv)];
     entry = *oentry;
     for (; entry; oentry = &HeNEXT(entry), entry = *oentry) {
 	SV *sv;
@@ -1068,6 +1076,12 @@ S_hv_delete_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
 	    HvPLACEHOLDERS(hv)++;
 	else {
 	    *oentry = HeNEXT(entry);
+            if(!*first_entry && SvOOK(hv)) {
+                /* removed last entry, and aux struct present.  */
+                struct xpvhv_aux *const aux = HvAUX(hv);
+                if (aux->xhv_fill_lazy)
+                    --aux->xhv_fill_lazy;
+            }
 	    if (SvOOK(hv) && entry == HvAUX(hv)->xhv_eiter /* HvEITER(hv) */)
 		HvLAZYDEL_on(hv);
 	    else {
@@ -1124,7 +1138,13 @@ S_hsplit(pTHX_ HV *hv, STRLEN const oldsize, STRLEN newsize)
       return;
     }
     if (SvOOK(hv)) {
+        struct xpvhv_aux *const aux
+            = (struct xpvhv_aux *)&a[newsize * sizeof(HE*)];
 	Move(&a[oldsize * sizeof(HE*)], &a[newsize * sizeof(HE*)], 1, struct xpvhv_aux);
+        /* For now, just reset the lazy fill counter.
+           It would be possible to update the counter in the code below
+           instead.  */
+        aux->xhv_fill_lazy = 0;
     }
 
     PL_nomemok = FALSE;
@@ -1561,19 +1581,25 @@ Perl_hfree_next_entry(pTHX_ HV *hv, STRLEN *indexp)
 
     PERL_ARGS_ASSERT_HFREE_NEXT_ENTRY;
 
-    if (SvOOK(hv) && ((iter = HvAUX(hv)))
-	&& ((entry = iter->xhv_eiter)) )
-    {
-	/* the iterator may get resurrected after each
-	 * destructor call, so check each time */
-	if (entry && HvLAZYDEL(hv)) {	/* was deleted earlier? */
-	    HvLAZYDEL_off(hv);
-	    hv_free_ent(hv, entry);
-	    /* warning: at this point HvARRAY may have been
-	     * re-allocated, HvMAX changed etc */
-	}
-	iter->xhv_riter = -1; 	/* HvRITER(hv) = -1 */
-	iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
+    if (SvOOK(hv) && ((iter = HvAUX(hv)))) {
+        if ((entry = iter->xhv_eiter)) {
+            /* the iterator may get resurrected after each
+             * destructor call, so check each time */
+            if (entry && HvLAZYDEL(hv)) {       /* was deleted earlier? */
+                HvLAZYDEL_off(hv);
+                hv_free_ent(hv, entry);
+                /* warning: at this point HvARRAY may have been
+                 * re-allocated, HvMAX changed etc */
+            }
+            iter->xhv_riter = -1;       /* HvRITER(hv) = -1 */
+            iter->xhv_eiter = NULL;     /* HvEITER(hv) = NULL */
+        }
+        /* Reset any cached HvFILL() to "unknown".  It's unlikely that anyone
+           will actually call HvFILL() on a hash under destruction, so it
+           seems pointless attempting to track the number of keys remaining.
+           But if they do, we want to reset it again.  */
+        if (iter->xhv_fill_lazy)
+            iter->xhv_fill_lazy = 0;
     }
 
     if (!((XPVHV*)SvANY(hv))->xhv_keys)
@@ -1731,17 +1757,22 @@ Perl_hv_undef_flags(pTHX_ HV *hv, U32 flags)
 Returns the number of hash buckets that happen to be in use. This function is
 wrapped by the macro C<HvFILL>.
 
-Previously this value was stored in the HV structure, rather than being
-calculated on demand.
+Previously this value was always stored in the HV structure, which created an
+overhead on every hash (and pretty much every object) for something that was
+rarely used. Now we calculate it on demand the first time that it is needed,
+and cache it if that calculation is going to be costly to repeat. The cached
+value is updated by insertions and deletions, but (currently) discarded if
+the hash is split.
 
 =cut
 */
 
 STRLEN
-Perl_hv_fill(pTHX_ HV const *const hv)
+Perl_hv_fill(pTHX_ HV *const hv)
 {
     STRLEN count = 0;
     HE **ents = HvARRAY(hv);
+    struct xpvhv_aux *aux = SvOOK(hv) ? HvAUX(hv) : NULL;
 
     PERL_ARGS_ASSERT_HV_FILL;
 
@@ -1749,6 +1780,11 @@ Perl_hv_fill(pTHX_ HV const *const hv)
        One key can only possibly mean one bucket used.  */
     if (HvTOTALKEYS(hv) < 2)
         return HvTOTALKEYS(hv);
+
+#ifndef DEBUGGING
+    if (aux && aux->xhv_fill_lazy)
+        return aux->xhv_fill_lazy;
+#endif
 
     if (ents) {
 	HE *const *const last = ents + HvMAX(hv);
@@ -1759,6 +1795,16 @@ Perl_hv_fill(pTHX_ HV const *const hv)
 		--count;
 	} while (++ents <= last);
     }
+    if (aux) {
+#ifdef DEBUGGING
+        if (aux->xhv_fill_lazy)
+            assert(aux->xhv_fill_lazy == count);
+#endif
+        aux->xhv_fill_lazy = count;
+    } else if (HvMAX(hv) >= HV_FILL_THRESHOLD) {
+        aux = hv_auxinit(hv);
+        aux->xhv_fill_lazy = count;
+    }        
     return count;
 }
 
@@ -1783,6 +1829,7 @@ S_hv_auxinit(HV *hv) {
 
     iter->xhv_riter = -1; 	/* HvRITER(hv) = -1 */
     iter->xhv_eiter = NULL;	/* HvEITER(hv) = NULL */
+    iter->xhv_fill_lazy = 0;
     iter->xhv_name_u.xhvnameu_name = 0;
     iter->xhv_name_count = 0;
     iter->xhv_backreferences = 0;
