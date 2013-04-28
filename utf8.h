@@ -122,9 +122,12 @@ END_EXTERN_C
 #define UNI_TO_NATIVE(ch)        (ch)
 #define NATIVE_TO_UNI(ch)        (ch)
 
-/* As there are no translations, avoid the function wrapper */
-#define utf8n_to_uvchr utf8n_to_uvoffuni
-#define uvchr_to_utf8(a,b) uvoffuni_to_utf8_flags(a,b,0)
+#define uvchr_to_utf8(a,b)          uvchr_to_utf8_flags(a,b,0)
+#define uvchr_to_utf8_flags(d,uv,flags)                                        \
+                            uvoffuni_to_utf8_flags(d,NATIVE_TO_UNI(uv),flags)
+#define utf8_to_uvchr_buf(s, e, lenp)                                          \
+                     utf8n_to_uvchr(s, (e) - (s), lenp,                        \
+                                    ckWARN_d(WARN_UTF8) ? 0 : UTF8_ALLOW_ANY)
 
 /*
 
