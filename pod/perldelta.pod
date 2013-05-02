@@ -64,6 +64,15 @@ overload has been upgraded from version 1.21 to 1.22.
 
 =item *
 
+Test::Harness has been upgraded from version 3.26 to 3.28
+
+Memory usage is dramatically reduced. t/harness now uses about 10% of the
+memory used by 3.26 and earlier.
+
+C<PERL5LIB> is always propagated to a test's C<@INC>, even under C<-T>.
+
+=item *
+
 Storable has been upgraded from version 2.40 to 2.41.
 
 =item *
