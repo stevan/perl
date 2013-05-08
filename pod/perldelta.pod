@@ -792,12 +792,14 @@ inline functions. This should speed things up slightly on non-GCC platforms.
 
 =item *
 
+# XXX wtf? -- xdg, 2013-05-08
+
 Apply the optimisation of hashes in boolean context, such as in C<if> or
 C<and>, to constructs in non-void context.
 
 =item *
 
-Extend the optimisation of hashes in boolean context to C<scalar(%hash)>,
+Optimization of hashes in boolean context extended to include C<scalar(%hash)>,
 C<%hash ? ... : ...>, and C<sub { %hash || ... }>.
 
 =item *
@@ -843,6 +845,8 @@ You can substitute your favorite version in place of 5.14.0, too.
 =over 4
 
 =item *
+
+# XXX is this todo or should it be removed? -- xdg, 2013-05-08
 
 L<XXX> has been upgraded from version A.xx to B.yy.
 
@@ -937,13 +941,7 @@ The following additions or changes have been made to diagnostic output,
 including warnings and fatal error messages.  For the complete list of
 diagnostic messages, see L<perldiag>.
 
-XXX New or changed warnings emitted by the core's C<C> code go here.  Also
-include any changes in L<perldiag> that reconcile it to the C<C> code.
-
 =head2 New Diagnostics
-
-XXX Newly added diagnostic messages go under here, separated into New Errors
-and New Warnings
 
 =head3 New Errors
 
@@ -1331,10 +1329,14 @@ that assume C99 [perl #113778].
 
 =head3 clang++
 
+# XXX not a platform note -- xdg, 2013-05-08
+
 There is now a workaround for a compiler bug that prevented compiling
 with clang++ since Perl 5.15.7 [perl #112786].
 
 =head3 C++
+
+# XXX not a platform note -- xdg, 2013-05-08
 
 When compiling the Perl core as C++ (which is only semi-supported), the
 mathom functions are now compiled as C<extern "C">, to ensure proper
@@ -1660,6 +1662,8 @@ should be operationally invisible.
 The C<study> function was made a no-op in 5.16.  It was simply disabled via
 a C<return> statement; the code was left in place.  Now the code supporting
 what C<study> used to do has been removed.
+
+# XXX is this deprecated? -- xdg, 2013-05-08
 
 =item *
 
@@ -2254,10 +2258,6 @@ A potential deadlock scenario involving the premature termination of a pseudo-
 forked child in a Windows build with ithreads enabled has been fixed.  This
 resolves the common problem of the F<t/op/fork.t> test hanging on Windows [perl
 #88840].
-
-=item *
-
-The microperl build, broken since Perl 5.15.7, has now been restored.
 
 =item *
 
