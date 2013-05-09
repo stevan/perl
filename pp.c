@@ -1647,7 +1647,7 @@ PP(pp_repeat)
 
     if (GIMME == G_ARRAY && PL_op->op_private & OPpREPEAT_DOLIST) {
 	dMARK;
-	static const char* const oom_list_extend = "Out of memory during list extend";
+	static const char oom_list_extend[] = "Out of memory during list extend";
 	const I32 items = SP - MARK;
 	const I32 max = items * count;
 
@@ -1699,7 +1699,7 @@ PP(pp_repeat)
 	SV * const tmpstr = POPs;
 	STRLEN len;
 	bool isutf;
-	static const char* const oom_string_extend =
+	static const char oom_string_extend[] =
 	  "Out of memory during string extend";
 
 	if (TARG != tmpstr)
