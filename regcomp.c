@@ -10141,8 +10141,13 @@ S_alloc_maybe_populate_EXACT(pTHX_ RExC_state_t *pRExC_state, regnode *node, I32
 
     if (! len_passed_in) {
         if (UTF) {
-            if (FOLD) {
-                to_uni_fold(NATIVE_TO_UNI(code_point), character, &len);
+            if (FOLD && ! LOC) {
+                _to_uni_fold_flags(NATIVE_TO_UNI(code_point),
+                                   character,
+                                   &len,
+                                   FOLD_FLAGS_FULL | (ASCII_FOLD_RESTRICTED
+                                                     ? FOLD_FLAGS_NOMIX_ASCII
+                                                     : 0));
             }
             else {
                 uvchr_to_utf8( character, code_point);
